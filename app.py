@@ -55,20 +55,107 @@ class WhatsAppProactiveBot:
         self.last_activity_time = datetime.now()
         self.qr_code_path = "qr_code.png"
         
+        # --- Stats Tracking ---
+        self.stats = {
+            "messages_seen": 0,
+            "replies_sent": 0,
+            "sparks_fired": 0,
+            "random_hits": 0,
+            "errors": 0,
+        }
+        self.activity_log = []  # Last 50 events
+        
         # Web Server
         self.webapp = web.Application()
         self.webapp.router.add_get('/', self.handle_home)
         self.webapp.router.add_get('/qr', self.handle_qr)
+        self.webapp.router.add_get('/check', self.handle_check)
         self.webapp.router.add_get('/health', self.handle_health)
+
+    def log_activity(self, event):
+        """Add event to activity log (keep last 50)"""
+        entry = f"[{datetime.now().strftime('%H:%M:%S')}] {event}"
+        self.activity_log.append(entry)
+        if len(self.activity_log) > 50:
+            self.activity_log.pop(0)
+        logger.info(event)
 
     # --- Web Server Handlers ---
     async def handle_home(self, request):
-        return web.Response(text="GDG Data & AI Bot Active. Go to /qr to scan login code.")
+        uptime = str(datetime.now() - self.start_time).split('.')[0]
+        status_color = "#00ff88" if self.is_authenticated else "#ff4444"
+        status_text = "CONNECTED ✅" if self.is_authenticated else "WAITING FOR QR SCAN ⏳"
+        
+        log_html = "".join(
+            f"<div class='log-entry'>{entry}</div>" for entry in reversed(self.activity_log[-30:])
+        ) or "<div class='log-entry' style='color:#666'>No activity yet...</div>"
+        
+        html = f"""<!DOCTYPE html>
+<html><head>
+<title>GDG Bot Dashboard</title>
+<meta http-equiv="refresh" content="10">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:#0a0a0a; color:#e0e0e0; font-family:'Segoe UI',sans-serif; padding:20px; }}
+  h1 {{ color:#00ff88; font-size:28px; margin-bottom:5px; }}
+  .subtitle {{ color:#666; margin-bottom:20px; }}
+  .grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin:20px 0; }}
+  .card {{ background:#1a1a2e; border-radius:10px; padding:16px; text-align:center; border:1px solid #2a2a4a; }}
+  .card .value {{ font-size:28px; font-weight:bold; color:#00ff88; }}
+  .card .label {{ font-size:12px; color:#888; margin-top:4px; }}
+  .status {{ padding:8px 16px; border-radius:20px; display:inline-block; font-weight:bold; 
+             background:{status_color}22; color:{status_color}; border:1px solid {status_color}; margin:10px 0; }}
+  .log-box {{ background:#111; border:1px solid #333; border-radius:10px; padding:15px; 
+              max-height:400px; overflow-y:auto; margin-top:15px; }}
+  .log-entry {{ font-family:monospace; font-size:13px; padding:4px 0; border-bottom:1px solid #1a1a1a; color:#aaa; }}
+  .actions {{ margin-top:15px; }}
+  .actions a {{ color:#00ff88; text-decoration:none; margin-right:15px; padding:8px 16px; 
+                border:1px solid #00ff88; border-radius:8px; font-size:14px; }}
+  .actions a:hover {{ background:#00ff8822; }}
+</style>
+</head><body>
+<h1>🤖 GDG Data & AI Bot</h1>
+<p class="subtitle">WhatsApp Proactive Chatter</p>
+<div class="status">{status_text}</div>
+
+<div class="grid">
+  <div class="card"><div class="value">{uptime}</div><div class="label">⏱️ Uptime</div></div>
+  <div class="card"><div class="value">{self.stats['messages_seen']}</div><div class="label">👁️ Messages Seen</div></div>
+  <div class="card"><div class="value">{self.stats['replies_sent']}</div><div class="label">💬 Replies Sent</div></div>
+  <div class="card"><div class="value">{self.stats['sparks_fired']}</div><div class="label">🔥 Sparks Fired</div></div>
+  <div class="card"><div class="value">{self.stats['random_hits']}</div><div class="label">🎲 Random Hits</div></div>
+  <div class="card"><div class="value">{self.stats['errors']}</div><div class="label">❌ Errors</div></div>
+</div>
+
+<div class="actions">
+  <a href="/qr">📱 View QR Code</a>
+  <a href="/check">📊 JSON Stats</a>
+  <a href="/health">💚 Health</a>
+</div>
+
+<h3 style="margin-top:20px; color:#888;">📜 Activity Log</h3>
+<div class="log-box">{log_html}</div>
+
+<p style="color:#333; margin-top:20px; font-size:11px;">Auto-refreshes every 10 seconds</p>
+</body></html>"""
+        return web.Response(text=html, content_type='text/html')
 
     async def handle_qr(self, request):
         if os.path.exists(self.qr_code_path):
             return web.FileResponse(self.qr_code_path)
         return web.Response(text="No QR code available yet. Check back in 10 seconds.")
+
+    async def handle_check(self, request):
+        uptime = str(datetime.now() - self.start_time).split('.')[0]
+        data = {
+            "status": "connected" if self.is_authenticated else "waiting_for_qr",
+            "uptime": uptime,
+            "target_group": TARGET_GROUP,
+            "stats": self.stats,
+            "last_activity": self.last_activity_time.isoformat(),
+            "recent_log": self.activity_log[-20:],
+        }
+        return web.json_response(data)
 
     async def handle_health(self, request):
         return web.Response(text="OK", status=200)
@@ -210,7 +297,7 @@ class WhatsAppProactiveBot:
 
     # --- Message Handling ---
     async def message_loop(self):
-        logger.info("Starting message listener...")
+        self.log_activity("Message listener started")
         
         # Inject observer
         await self.page.evaluate('''() => {
@@ -240,7 +327,8 @@ class WhatsAppProactiveBot:
                 
                 await asyncio.sleep(2)
             except Exception as e:
-                logger.error(f"Loop error: {e}")
+                self.stats["errors"] += 1
+                self.log_activity(f"❌ Loop error: {e}")
                 await asyncio.sleep(5)
 
     async def check_active_chat(self):
@@ -270,7 +358,8 @@ class WhatsAppProactiveBot:
                 return
             
             self.processed_messages.add(msg_id)
-            logger.info(f"New message in {chat_name}: {msg_text}")
+            self.stats["messages_seen"] += 1
+            self.log_activity(f"👁️ Message in {chat_name}: {msg_text[:50]}")
 
             # Respond Logic
             if is_target_group:
@@ -282,22 +371,23 @@ class WhatsAppProactiveBot:
                 # DECIDE IF WE SHOULD REPLY
                 should_reply = False
                 
-                # 1. Reply if active tag (mentions us) - Hard to detect without parsing text for @BotName, 
-                # but we can assume if they are talking we might want to chip in.
-                
-                # 2. Random Chance ("Constantly sending messages" mode)
+                # Random Chance ("Constantly sending messages" mode)
                 if random.random() < RANDOM_REPLY_PROBABILITY:
-                    logger.info("Randomly decided to interject!")
+                    self.stats["random_hits"] += 1
+                    self.log_activity("🎲 Random reply trigger HIT!")
                     should_reply = True
                 
                 if should_reply:
                     reply = await self.get_ai_response(msg_text, self.message_history[chat_name])
                     if reply:
                         await self.send_text(reply)
+                        self.stats["replies_sent"] += 1
+                        self.log_activity(f"💬 Replied: {reply[:60]}")
                         self.message_history[chat_name].append({"role": "assistant", "content": reply})
 
         except Exception as e:
-            logger.error(f"Error checking chat: {e}")
+            self.stats["errors"] += 1
+            self.log_activity(f"❌ Chat error: {e}")
 
     async def get_chat_name(self):
         try:
@@ -318,32 +408,30 @@ class WhatsAppProactiveBot:
             return False
 
     async def proactive_loop(self):
-        logger.info("Starting Proactive Engine...")
+        self.log_activity("Proactive Engine started")
         while True:
             await asyncio.sleep(60)
             
             delta = datetime.now() - self.last_activity_time
             if delta > timedelta(minutes=IDLE_THRESHOLD_MINUTES):
-                logger.info("Group silent. Sparking...")
+                self.log_activity(f"🔥 Group silent for {IDLE_THRESHOLD_MINUTES}min. Sparking...")
                 
                 prompt = "The group is silent. Generate a one-sentence fun/controversial tech question to wake them up."
                 spark = await self.get_ai_response(prompt)
                 
                 if spark:
-                    # Navigate to group first to be safe
                     await self.navigate_to_group(TARGET_GROUP)
                     await self.send_text(spark)
-                    self.last_activity_time = datetime.now() # Reset
+                    self.stats["sparks_fired"] += 1
+                    self.log_activity(f"🔥 Spark sent: {spark[:60]}")
+                    self.last_activity_time = datetime.now()
 
     async def keep_alive_loop(self):
-        """Pings the internal web server to keep the event loop moving/logging"""
-        logger.info("Starting Keep-Alive Loop...")
+        self.log_activity("Keep-Alive Loop started")
         while True:
             await asyncio.sleep(300) # 5 minutes
             try:
-                # We can't ping localhost inside container easily if we didn't expose it to self,
-                # but we can just log a heartbeat
-                logger.info(f"HEARTBEAT: Bot active at {datetime.now()}")
+                self.log_activity(f"💚 HEARTBEAT: Bot alive | Msgs: {self.stats['messages_seen']} | Replies: {self.stats['replies_sent']}")
             except Exception:
                 pass
 
