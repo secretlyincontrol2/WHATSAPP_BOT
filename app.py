@@ -88,7 +88,13 @@ class WhatsAppProactiveBot:
             playwright = await async_playwright().start()
             self.browser = await playwright.chromium.launch(
                 headless=True,
-                args=['--disable-notifications', '--no-sandbox', '--disable-setuid-sandbox']
+                args=[
+                    '--disable-notifications',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage',
+                ]
             )
             self.context = await self.browser.new_context(
                 viewport={'width': 1280, 'height': 800},
@@ -130,7 +136,23 @@ class WhatsAppProactiveBot:
     async def initialize(self):
         await self.start_server()
         async with self.browser_context():
-            await self.page.goto("https://web.whatsapp.com/")
+            # Retry navigation with backoff (DNS can be slow in containers)
+            max_retries = 5
+            for attempt in range(1, max_retries + 1):
+                try:
+                    logger.info(f"Navigating to WhatsApp Web (attempt {attempt}/{max_retries})...")
+                    await self.page.goto("https://web.whatsapp.com/", timeout=60000)
+                    logger.info("Navigation successful!")
+                    break
+                except Exception as e:
+                    logger.error(f"Navigation failed (attempt {attempt}): {e}")
+                    if attempt == max_retries:
+                        logger.error("All navigation attempts failed. Exiting.")
+                        return
+                    wait_time = 10 * attempt  # 10s, 20s, 30s, 40s
+                    logger.info(f"Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
+
             if await self.wait_for_login():
                 # Start combined loop
                 await asyncio.gather(
