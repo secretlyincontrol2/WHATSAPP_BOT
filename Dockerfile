@@ -34,4 +34,4 @@ EXPOSE 7860
 # Environment variables
 ENV PORT=7860
 
-CMD ["python", "main.py"]
+CMD ["python", "app.py"]
