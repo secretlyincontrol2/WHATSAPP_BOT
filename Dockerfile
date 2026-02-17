@@ -1,10 +1,10 @@
 # Use the official Playwright image which has all dependencies pre-installed
 FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
 
-# Set up a new user named "user" with user ID 1000
-RUN useradd -m -u 1000 user
+# The official image creates a user 'pwuser' with UID 1000 automatically.
+# We just need to use it.
 
-WORKDIR /home/user/app
+WORKDIR /home/pwuser/app
 
 # Copy requirements and install python dependencies
 COPY requirements.txt .
@@ -12,14 +12,14 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY --chown=user . .
+COPY --chown=pwuser . .
 
-# Switch to non-root user
-USER user
+# Switch to the existing non-root user
+USER pwuser
 
 # Set home environment variables
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH \
+ENV HOME=/home/pwuser \
+    PATH=/home/pwuser/.local/bin:$PATH \
     PORT=7860
 
 # Expose the port
