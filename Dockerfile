@@ -1,51 +1,28 @@
-FROM python:3.10-slim
+# Use the official Playwright image which has all dependencies pre-installed
+FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
 
 # Set up a new user named "user" with user ID 1000
 RUN useradd -m -u 1000 user
 
-# Install dependencies for Playwright
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /home/user/app
 
-# Switch to the "user" user
-USER user
-
-# Set home to the user's home directory
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
-
-WORKDIR $HOME/app
-
-# Copy the current directory contents into the container at $HOME/app setting the owner to the user
-COPY --chown=user . $HOME/app
-
-# Install Python dependencies
+# Copy requirements and install python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (Chromium)
-RUN playwright install chromium
+# Copy application files
+COPY --chown=user . .
 
-# Expose port 7860 (Hugging Face default)
+# Switch to non-root user
+USER user
+
+# Set home environment variables
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PORT=7860
+
+# Expose the port
 EXPOSE 7860
-
-# Environment variables
-ENV PORT=7860
 
 CMD ["python", "app.py"]
