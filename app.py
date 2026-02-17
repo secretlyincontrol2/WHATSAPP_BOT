@@ -110,12 +110,33 @@ class WhatsAppProactiveBot:
 
     async def capture_qr(self):
         try:
-            qr_element = await self.page.query_selector("div[data-testid='qrcode']")
-            if qr_element:
-                await qr_element.screenshot(path=self.qr_code_path)
-                logger.info("QR Code captured.")
-        except Exception:
-            pass
+            # Try multiple known QR code selectors
+            selectors = [
+                "div[data-testid='qrcode']",
+                "canvas",
+                "div._akau",
+                "[data-ref]",
+            ]
+            for selector in selectors:
+                qr_element = await self.page.query_selector(selector)
+                if qr_element:
+                    await qr_element.screenshot(path=self.qr_code_path)
+                    logger.info(f"QR Code captured using selector: {selector}")
+                    return True
+            
+            # Fallback: take full page screenshot so user can at least see something
+            await self.page.screenshot(path=self.qr_code_path)
+            logger.info("QR element not found. Saved full page screenshot instead.")
+            return True
+        except Exception as e:
+            logger.error(f"QR capture error: {e}")
+            # Last resort: full page screenshot
+            try:
+                await self.page.screenshot(path=self.qr_code_path)
+                logger.info("Saved fallback full page screenshot.")
+            except:
+                pass
+            return False
 
     async def wait_for_login(self):
         logger.info("Waiting for login...")
