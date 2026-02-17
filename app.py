@@ -31,7 +31,7 @@ QWEN_MODEL = os.getenv("QWEN_MODEL", "Qwen/Qwen1.5-72B-Chat")
 TARGET_GROUP = os.getenv("TARGET_GROUP", "GDG Data and AI") 
 IDLE_THRESHOLD_MINUTES = int(os.getenv("IDLE_THRESHOLD_MINUTES", "5")) # Lowered default to 5 minutes
 RANDOM_REPLY_PROBABILITY = float(os.getenv("RANDOM_REPLY_PROBABILITY", "0.35")) # 35% chance to reply to ANY message
-PORT = int(os.getenv("PORT", "7860"))
+PORT = int(os.getenv("PORT", "10000"))
 
 SYSTEM_PROMPT = """You are the energetic, tech-obsessed soul of the GDG Data and AI community. 
 You are NOT a helpful assistant. You are a community member who loves Python, LLMs, and Data Science.

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: gdg-whatsapp-bot
+    runtime: docker
+    plan: free
+    envVars:
+      - key: TOGETHER_API_KEY
+        sync: false
+      - key: QWEN_MODEL
+        value: Qwen/Qwen2-72B-Instruct
+      - key: TARGET_GROUP
+        value: GDG Data and AI
+      - key: IDLE_THRESHOLD_MINUTES
+        value: "5"
+      - key: RANDOM_REPLY_PROBABILITY
+        value: "0.35"
