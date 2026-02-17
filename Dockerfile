@@ -1,5 +1,5 @@
 # Use the official Playwright image which has all dependencies pre-installed
-FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.49.1-jammy
 
 # The official image creates a user 'pwuser' with UID 1000 automatically.
 # We just need to use it.
